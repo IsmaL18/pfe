@@ -2,8 +2,8 @@ import os
 
 """import subprocess
 installation_command = "pip install opencv-python"
-subprocess.run(installation_command, shell=True)"""
-import cv2
+subprocess.run(installation_command, shell=True)
+import cv2"""
 
 import pandas as pd
 
@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.preprocessing import LabelEncoder
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import SimpleRNN, Dense, LSTM, Dropout
@@ -34,8 +35,8 @@ warnings.filterwarnings("ignore")
 
 # ----------- CREATION DES VARIABLES ----------
 
-tsv_file_path = "../cv-corpus_5.1/fr/validated.tsv"
-mp3_files_folder = "../cv-corpus_5.1/fr/clips/"
+tsv_file_path = "/home/debbagh/Documents/esme/inge3/pfe/data/fr/cv-corpus-5.1-2020-06-22/fr/validated.tsv"
+mp3_files_folder = "/home/debbagh/Documents/esme/inge3/pfe/data/fr/cv-corpus-5.1-2020-06-22/fr/clips/"
 generated_dbspec_folder = "../cv-corpus_5.1/fr/generated_db_spectrograms/"
 
 valid_genders = ['male', 'female']
@@ -74,7 +75,7 @@ y_gender_test = []
 df_age = None
 df_gender = None
 
-threshold_age_column = 200  # age --> twenties : 84109   &   thirties : 81491   &   fourties : 51617   &   fifties : 47472   &   sixties : 17740   &   teens : 13502   &   seventies : 2329   &   eighties : 24
+threshold_age_column = 5000  # age --> twenties : 84109   &   thirties : 81491   &   fourties : 51617   &   fifties : 47472   &   sixties : 17740   &   teens : 13502   &   seventies : 2329   &   eighties : 24
 threshold_gender_column = 50000 # gender --> male : 272861   &   female : 43749
 
 model_rnn_age = None
@@ -84,12 +85,14 @@ history_rnn_gender = None
 
 audio_time = 3 # temps en secondes d'un audio
 
-version_age = '5'
+version_age = '2'
 version_gender = '1'
 
-nbr_epochs = 200
+model_choice = "new_rnn"
+loss_age = 'sparse_categorical_crossentropy'
+nbr_epochs = 500
 batch_size = 256
-patience = 10
+patience = 15
 
 hop_length = 512  # the default spacing between frames
 n_fft = 255  # number of samples
@@ -253,15 +256,19 @@ def association_file_label():
 def label_encoding():
     global y_gender, y_age
 
+    le = LabelEncoder()
+
     if choice == 'gender':
-        for idx_label in range(len(y_gender)):
+        y_gender = le.fit_transform(y_gender)
+        """for idx_label in range(len(y_gender)):
             if y_gender[idx_label] == 'male':
                 y_gender[idx_label] = 0
             elif y_gender[idx_label] == 'female':
-                y_gender[idx_label] = 1
+                y_gender[idx_label] = 1"""
 
     elif choice == 'age':
-        new_y = []
+        y_age = le.fit_transform(y_age)
+        """new_y = []
 
         for i in range(len(y_age)):
             vect = []
@@ -276,7 +283,7 @@ def label_encoding():
 
             new_y.append(vect)
 
-        y_age = new_y
+        y_age = new_y"""
 
 def normalize_images():
     global X_gender, X_age
@@ -336,40 +343,42 @@ def creation_rnn_model():
     elif choice == 'age':
         print("\n\n\nX_train_age.shape : ", X_train_age.shape, "\n\n\n")
 
-        """model_rnn_age = Sequential()
-        model_rnn_age.add(SimpleRNN(16, input_shape=(X_train_age.shape[1], X_train_age.shape[2]), return_sequences=True))
-        model_rnn_age.add(SimpleRNN(32, return_sequences=True))
-        model_rnn_age.add(SimpleRNN(64))
-        model_rnn_age.add(Dense(num_classes_age, activation='softmax'))"""
+        if model_choice == 'simple_rnn':
+            model_rnn_age = Sequential()
+            model_rnn_age.add(SimpleRNN(16, input_shape=(X_train_age.shape[1], X_train_age.shape[2]), return_sequences=True))
+            model_rnn_age.add(SimpleRNN(32, return_sequences=True))
+            model_rnn_age.add(SimpleRNN(64))
+            model_rnn_age.add(Dense(num_classes_age, activation='softmax'))
 
-        model_rnn_age = Sequential()
-        model_rnn_age.add(LSTM(128, input_shape=(X_train_age.shape[1], X_train_age.shape[2])))
-        model_rnn_age.add(Dropout(0.2))
-        model_rnn_age.add(Dense(128, activation='relu'))
-        model_rnn_age.add(Dense(64, activation='relu'))
-        model_rnn_age.add(Dropout(0.4))
-        model_rnn_age.add(Dense(48, activation='relu'))
-        model_rnn_age.add(Dropout(0.4))
-        model_rnn_age.add(Dense(num_classes_age, activation='softmax'))
+        if model_choice == 'new_rnn':
+            model_rnn_age = Sequential()
+            model_rnn_age.add(LSTM(128, input_shape=(X_train_age.shape[1], X_train_age.shape[2])))
+            model_rnn_age.add(Dropout(0.2))
+            model_rnn_age.add(Dense(128, activation='relu'))
+            model_rnn_age.add(Dense(64, activation='relu'))
+            model_rnn_age.add(Dropout(0.4))
+            model_rnn_age.add(Dense(48, activation='relu'))
+            model_rnn_age.add(Dropout(0.4))
+            model_rnn_age.add(Dense(num_classes_age, activation='softmax'))
 
-        # Modèle de base
-        """model_rnn_age = Sequential()
-        model_rnn_age.add(SimpleRNN(64, input_shape=(X_train_age.shape[1], 1)))
-        model_rnn_age.add(Dense(num_classes_age, activation='softmax'))"""  # Utilisation de softmax pour la classification multiclasse
+        if model_choice == 'base_rnn':
+            model_rnn_age = Sequential()
+            model_rnn_age.add(SimpleRNN(64, input_shape=(X_train_age.shape[1], X_train_age.shape[2])))
+            model_rnn_age.add(Dense(num_classes_age, activation='softmax'))  # Utilisation de softmax pour la classification multiclasse
 
-        # Modèle Axel
-        """model_rnn_age = Sequential()
-        model_rnn_age.add(Conv1D(filters=32, kernel_size=3, activation='relu', input_shape=(X_train_age.shape[1], 1)))
-        model_rnn_age.add(MaxPooling1D(pool_size=2))
-        model_rnn_age.add(Conv1D(filters=16, kernel_size=3, activation='relu'))
-        model_rnn_age.add(MaxPooling1D(pool_size=2))
-        model_rnn_age.add(Flatten())
-        model_rnn_age.add(Dense(64, activation='relu'))
-        model_rnn_age.add(Dense(num_classes_age, activation='softmax'))"""
+        if model_choice == 'axel_cnn':
+            model_rnn_age = Sequential()
+            model_rnn_age.add(Conv1D(filters=32, kernel_size=3, activation='relu', input_shape=(X_train_age.shape[1])))
+            model_rnn_age.add(MaxPooling1D(pool_size=2))
+            model_rnn_age.add(Conv1D(filters=16, kernel_size=3, activation='relu'))
+            model_rnn_age.add(MaxPooling1D(pool_size=2))
+            model_rnn_age.add(Flatten())
+            model_rnn_age.add(Dense(64, activation='relu'))
+            model_rnn_age.add(Dense(num_classes_age, activation='softmax'))
 
         model_rnn_age.summary()
 
-        model_rnn_age.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+        model_rnn_age.compile(loss=loss_age, optimizer='adam', metrics=['accuracy'])
 
         model_rnn_age.summary()
 
@@ -387,7 +396,7 @@ def fit_model():
     early_stopping = EarlyStopping(monitor='val_accuracy', patience=patience, mode='max', verbose=1)
 
     if choice == 'age':
-        filename_model = 'rnn_model_' + choice + '_v' + version_age + '.h5'
+        filename_model = 'rnn2d_model_' + choice + '_v' + version_age + '.h5'
         checkpoint = ModelCheckpoint(filename_model, monitor='val_accuracy', save_best_only=True, mode='max', verbose=1)
 
         history_rnn_age = model_rnn_age.fit(X_train_age, y_age_train, epochs=nbr_epochs,
@@ -398,7 +407,7 @@ def fit_model():
                                             callbacks=[checkpoint, early_stopping])"""
 
     elif choice == 'gender':
-        filename_model = 'rnn_model_' + choice + '_v' + version_gender + '.h5'
+        filename_model = 'rnn_model2d_' + choice + '_v' + version_gender + '.h5'
         checkpoint = ModelCheckpoint('best_model.h5', monitor='val_accuracy', save_best_only=True, mode='max', verbose=1)
 
         history_rnn_gender = model_rnn_gender.fit(X_gender.reshape(X_gender.shape[0], X_gender.shape[1], 1), y_gender,
@@ -452,25 +461,21 @@ def f1_conf_matrix(X_test, y_test):
 
         for idx_pred in range(len(predictions)):
             prediction = np.array(predictions[idx_pred])
-            predicted_class = np.argmax(prediction) + 1
+            predicted_class = np.argmax(prediction)
 
             predicted_classes.append(predicted_class)
 
-            for j in range(len(y_test[idx_pred])):
-                if y_test[idx_pred][j] == 1:
-                    true_label = j + 1
-                    y_true_labels.append(true_label)
-                else:
-                    pass
-
-    print(y_true_labels, "\nVS\n", predicted_classes)
+    y_test = np.array(y_test)
+    predicted_classes = np.array(predicted_classes)
+    print("y_test : ", y_test)
+    print("predicted_classes : ", predicted_classes)
 
 
 
     print("Matrice de confusion :")
-    print(confusion_matrix(y_true_labels, predicted_classes))
+    print(confusion_matrix(y_test, predicted_classes))
     print("F1-score : ")
-    print(f1_score(y_true_labels, predicted_classes, average='weighted'))
+    print(f1_score(y_test, predicted_classes, average='weighted'))
 
 
 def evaluate():
@@ -493,22 +498,23 @@ def main_rnn2d_51():
     load_dataset()
     association_file_label()
     preprocessing()
+
+    """print("\nX_age.shape : ", X_age.shape)
+    print("y_age.shape : ", y_age.shape)
+    print("y_age : ", y_age)
+    unique_labels, label_counts = np.unique(y_age, return_counts=True)
+    print("y_age labels : ")
+    for label, count in zip(unique_labels, label_counts):
+        print(f"Label {label}: {count}")
+    unique_labels, label_counts = np.unique(y_age_train, return_counts=True)
+    print("y_age_train labels : ")
+    for label, count in zip(unique_labels, label_counts):
+        print(f"Label {label}: {count}")
+    unique_labels, label_counts = np.unique(y_age_test, return_counts=True)
+    print("y_age_test labels : ")
+    for label, count in zip(unique_labels, label_counts):
+        print(f"Label {label}: {count}")"""
+
     creation_rnn_model()
     fit_model()
     evaluate()
-
-    """audio, sr = librosa.load(mp3_files_folder+'common_voice_fr_17299455.mp3')
-
-    if len(audio) < audio_time * sr:
-        print("Audio trop cooooouuuuurt")
-        pass
-
-    else:
-        nbr_samples = math.floor(len(audio) / (audio_time * sr))
-
-        step = 0
-
-        for i in range(1, nbr_samples + 1):
-            new_audio = audio[step:i * audio_time * sr]
-
-            db_spectrogram = handle_img_file_existence('common_voice_fr_17299455.mp3', i, new_audio, sr, print_choice=1, plot_choice=1)"""
